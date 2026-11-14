@@ -1,0 +1,1 @@
+Own code: MIT, copyright 2026 Leager. Third-party code and dependencies retain their original licenses and notices.

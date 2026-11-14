@@ -1,0 +1,26 @@
+[package]
+license = "MIT"
+name = "lazybuddy-news"
+version = "0.1.0"
+edition = "2024"
+default-run = "lazybuddy-news"
+
+[features]
+http = ["dep:axum", "dep:tokio"]
+
+[[bin]]
+name = "lazybuddy-news-http"
+path = "src/http.rs"
+required-features = ["http"]
+
+[dependencies]
+axum = { version = "0.8", optional = true }
+tokio = { version = "1", features = ["net", "rt-multi-thread", "sync", "macros"], optional = true }
+percent-encoding = "2.3"
+scraper = { version = "0.24", default-features = false }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+ureq = { version = "3.5", default-features = false, features = ["native-tls"] }
+
+[workspace]
+resolver = "3"

@@ -1,0 +1,12 @@
+target/
+/dist/
+/build/
+/.venv/
+/src/lazybuddy_hongguo/runtime/
+*.exe
+*.dll
+*.pdb
+*.egg-info/
+__pycache__/
+*.pyc
+.env
