@@ -7,3 +7,5 @@
 - Credentials, device identities, signed URLs and media keys never enter commits, command arguments or public errors. Explicit user authorization is required for real account writes. Do not infer rights from a successful login or one episode.
 - Use private dependencies and ignored target/tmp output. Clean verified obsolete artifacts promptly, preserving SDKs, live instances, source and unpushed Git history. Do not run a blanket clean against a shared SDK.
 - Confirm own-code and third-party licenses before public distribution. Preserve upstream notices; do not invent a license or release identity. Commit/push/transfer/tag/release are separate actions within current authorization.
+
+- 新增功能必须附带该功能的单元测试；日常只运行新增或受影响的测试与必要构建，不默认执行全部单元、真实接口、媒体或GUI回归。仅关联共享边界或失败证据需要时扩大验证，全量验收由用户明确要求。
