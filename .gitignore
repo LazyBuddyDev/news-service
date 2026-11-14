@@ -1,6 +1,7 @@
 target/
 /dist/
 /build/
+/tmp/
 /.venv/
 /src/lazybuddy_hongguo/runtime/
 *.exe
