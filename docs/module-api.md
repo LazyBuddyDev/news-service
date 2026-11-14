@@ -1,66 +1,40 @@
-# LazyBuddy module API
+# 新闻服务 API
 
-Status: API v1, Windows x64. Business and decoder source belongs to independent repositories [news-service](https://github.com/LazyBuddyDev/news-service) and [hongguo-service](https://github.com/LazyBuddyDev/hongguo-service). Neither depends on Iced or desktop implementation. This host repository owns presentation templates, lifecycle and API clients, not service code. Own code is MIT, copyright 2026 Leager; third-party code retains its original licenses. Binary release and signing are separate publication steps.
+API v1，Windows x64。服务独立提供新闻来源、解析、偏好和成功缓存，不依赖宿主GUI或相邻工作区。通用包与JSON Lines约定见[宿主模块契约](https://github.com/LazyBuddyDev/LazyBuddy/blob/main/docs/module-api.md)，构建入口见[README](../README.md)。
 
-This document is shared by the host and service repositories. Service-specific paths refer to the owning service repository. Each service's root module.json and README are its own build and package entrypoints.
+## 传输与方法
 
-## Package and process
+stdin每行一个UTF-8 JSON对象，stdout仅写对应回复，不混入日志：
 
-`module.json` uses schema 1, `service_api: 1`, an immutable three-part package version, and target `windows-x86_64`. IDs use lowercase letters, digits and hyphens, beginning with a letter. Entrypoints are relative paths inside the package. Service feature manifests live at the root of each service repository. Python/media runtime manifests belong to hongguo-service/contracts. The host keeps only a generic fixture manifest under contracts/fixtures.
+```json
+{"version":1,"id":"sources-1","method":"sources","args":{}}
+```
 
-Feature packages declare a page template. `news_grid` declares `catalog_method` and `fetch_method`; `media_library` declares `search_method` and `favorites_method`. Template v1 includes the additional settings/account/media methods described below; custom services must implement the complete template they select. These templates provide presentation components, not arbitrary HTML or scripts.
+成功回复为`{version:1,id,ok:true,data}`，失败为`{version:1,id,ok:false,error:{code}}`。单个请求上限64KiB；关闭stdin正常退出。
 
-Runtime packages have `kind: runtime` and no page. Dependencies pin exact package versions. The optional `runtime` field selects an interpreter dependency; the host runs that dependency's entrypoint/arguments followed by the feature entrypoint/arguments. Dependency directories are supplied as `LAZYBUDDY_DEPENDENCY_<UPPERCASE_ID_WITH_UNDERSCORES>_DIR`. Code and runtime files remain inside their own package directories; data goes under `LAZYBUDDY_DATA_DIR`.
-
-The service reads one UTF-8 JSON object per stdin line and writes one reply per stdout line. stdout must contain no logs. Requests use `{"version":1,"id":"request-id","method":"health","args":{}}`; replies preserve `version`/`id` and contain either `ok:true,data` or `ok:false,error:{code}`. Clients must handle unknown error codes. Closing stdin requests shutdown; `lifecycle.suspend` lets the Hongguo service complete an already submitted transaction after stopping media. The desktop owns each service process tree and rejects replies from an old activation.
-
-The host serializes transport requests. Expensive account work returns `operation:"pending"`; clients poll `account.status` for completion rather than blocking the transport. `accepted`, `pending`, confirmed account state, and actual decoder state have different meanings. An interrupted server write may still succeed upstream. Do not automatically resubmit it.
-
-## News grid
-
-| Method | Arguments | Result data |
+| 方法 | 参数 | data |
 | --- | --- | --- |
-| `health` | none | `service`, `api_version` |
-| `sources` | none | array of `id`, `name`, `category`, `subtitle` |
-| `fetch` | `sources`: 1–4 source IDs | array of `id`, `ok`, successful `stories` or source `error` |
-| `state` | none | `preferences`, successful `cache` keyed by source ID |
-| `preferences` | none | `preferences` only; no content update |
-| `configure` | complete `preferences` object | committed `preferences` |
+| `health` | 无 | `service: "news"`、`api_version: 1` |
+| `sources` | 无 | 来源数组：`id`、`name`、`category`、`subtitle` |
+| `fetch` | `sources`：1–4个已知来源ID | 各来源的`id`、`ok`、成功`stories`或`error` |
+| `state` | 无 | `preferences`与按来源ID索引的成功`cache` |
+| `preferences` | 无 | `preferences`，不刷新内容 |
+| `configure` | `preferences`对象 | 保存后的`preferences` |
 
-Stories contain `title`, `url`, `badge`. Successful fetch rows include `updated` (Unix seconds) and `updated_ms` (Unix milliseconds), matching the saved cache. Failed refreshes preserve previous successful stories. Preferences include `auto_refresh`, `refresh_minutes` (1–60), `followed`, `hidden`, `order`, `default_followed`. ID arrays contain known unique sources; `order` specifies sources pinned ahead of the remaining catalog.
+新闻项字段为`title`、`url`、`badge`。成功来源包含`updated`（Unix秒）与`updated_ms`（Unix毫秒），与持久缓存一致。单个来源失败不清空已有成功缓存；顶层成功不代表所有来源成功。
 
-The service has no refresh timer. The client schedules at most one four-source batch, stops scheduling when hidden or inactive, and restores only interrupted visible sources. For an independent HTTP consumer, build the optional adapter documented in the news-service README; bearer authentication, loopback-only binding, request limits and Origin rejection apply.
+偏好字段包括`auto_refresh`、`refresh_minutes`（1–60）、`followed`、`hidden`、`order`、`default_followed`。ID数组只能包含已知且不重复的来源；`order`将指定来源排在其余来源之前。客户端应先读取偏好，再合并用户修改提交，避免遗漏字段被默认值替代。无法读取或校验本地状态时返回失败，不用默认状态覆盖原文件。
 
-## Media library
+常见错误包括`invalid_request`、`unsupported_version`、`request_too_large`、`unknown_method`、`expected_one_to_four_sources`、`unknown_source`、`invalid_preferences`；每个来源抓取失败使用`source_failed`。客户端须兼容未知错误码，不能据错误类型推断网络访问已成功。
 
-| Method | Arguments | Result data |
-| --- | --- | --- |
-| `search` | `query`, `page` | `items`, `page`, `has_more` |
-| `account.restore/status/login/cancel/logout` | none | `state`, `name`, `qr_png`, account errors and operation fields |
-| `favorites.read` | none | pending operation, then confirmed `favorites` |
-| `favorites.set` | decimal-string `series`, boolean `favorite` | pending operation, then official read-back list or `favorites_error` |
-| `progress.read` | none | account-isolated `history`, sync status |
-| `progress.sync` | none | pending operation, then `history`, `sync_state`, `sync_error` |
-| `cover.read` | decimal-string `series` | `series`, `width`, `height`, Base64 `rgba` |
+## 状态与生命周期
 
-List items use string `id`, `title`, total `episodes`, `has_cover`. `qr_png` is Base64 PNG; it is empty outside the QR stages. States include `idle`, `preparing`, `pending`, `scanned`, `verifying`, `signed_in`, `failed`, `cancelled`. Login is complete only after identity validation and secure persistence. Cancel does not delete saved credentials; logout does. Raw account IDs, cookies, device profiles, signed URLs and content keys are never public fields.
+数据默认位于`%LOCALAPPDATA%/LazyBuddyNews`。`LAZYBUDDY_NEWS_DATA_DIR`显式覆盖，或使用`LAZYBUDDY_DATA_DIR/services/news`。偏好及成功缓存由本服务持久化，界面主题与窗口设置归客户端。
 
-Async results identify `operation_method`. Poll while `operation == "pending"`; completion is delivered by `account.status`. `progress.read` remains available during an account transaction; other account operations may report `account_busy`. Identity restoration reads the local snapshot; the visible client explicitly requests cloud synchronization. Manual cloud synchronization during loading/playback reports `player_busy`. History is keyed by string series ID and contains `episode`, `time` in seconds and `updated` in Unix seconds. Cloud merge uses update time, including a newer rewind. Only an explicitly confirmed upload is marked synchronized internally.
+服务没有后台刷新计时器。客户端只为当前可见页面调度，最多四个实际在途来源；旧请求退出前仍计入并发。离开、隐藏或进入设置后停止派发并隔离迟到结果，不用隐藏组件冒充静默。
 
-Cover pixels are RGBA, at most 240×360, decoded in the service. Clients must bound Base64 length and validate dimensions and byte count before allocating. The service accepts a known series ID, not arbitrary image URLs.
+## 可选 HTTP
 
-## Media control and frames
+构建与启动见[README](../README.md)。适配器监听127.0.0.1，端点为`POST /v1/news/rpc`，请求体使用同一JSON协议。`LAZYBUDDY_API_TOKEN`至少32个随机字母数字字符，调用需`Authorization: Bearer <token>`。拒绝带Origin的请求，限制请求体并拒绝忙碌期间的新事务，不暴露到公网。
 
-`media.open` accepts `series`, `episode`, `quality`, a private D3D12 `pipe`, resume `position` in seconds, `volume` (0–1), `mute`, and `speed`. It returns `loading` promptly; poll `media.status` until `loaded` or `error`. A new open cancels the old source process. Identity, catalog and per-episode permissions are verified independently. A client must not infer permission for every episode from one playable episode.
-
-Other methods are `media.play`, `media.pause`, `media.close`, `media.seek` (`value` in seconds), `media.speed` (`value`), `media.volume` (`value`), `media.mute` (boolean `value`) and `media.boost` (boolean `value`, temporary 2×). Status distinguishes selected `speed`, actual `actual_speed`, `boosted`, `position`, `duration`, `playing`, `loaded`, `loading`, `eos`, available episodes/qualities and actual decoded dimensions. `width`/`height` describe the input model; `decoded_width`/`decoded_height` come from the negotiated video output pad and remain null until available. `producer_pid` identifies the owned decoder process for the IPC consumer identity check; it is not the account service PID. `media.close` releases the source and decoder; it preserves the account's durable viewing record. EOS is a real decoder event, not a duration heuristic.
-
-The optional media runtime provides GStreamer 1.26.11 and a JSON control worker. Frames use that version's D3D12 IPC protocol. Consumers wait for producer fences, import/copy into an owned GPU texture, and acknowledge only after GPU completion. The reference consumer is `crates/media-ipc`, independent of the Hongguo business service. Its Iced view is optional. This is a Windows GPU interface, not a language-neutral video byte stream; other clients can use the API without playback, or implement the matching consumer. See `docs/media-runtime.md` for the verified scope.
-
-Hidden/capsule windows pause the established decoder without fetching a new source. Leaving the root page or opening settings releases media. Returning never autoplays. No inactive module may poll, refresh, fetch covers, preload or start a timer. An already submitted final progress transaction may finish its current confirmation, without spawning another round.
-
-## Distribution
-
-Packages are ZIPs with `module.json` at their root. The catalog records exact dependencies, HTTPS URL, byte size and SHA-256. `catalog.json.sig` is the raw 64-byte Ed25519 signature of the exact catalog bytes. The base package carries a separately trusted `module-catalog.json` with HTTPS `url` and a 32-byte public-key array. Signatures and hashes are verified before executing a download. Developer `install-local` is explicit and does not replace a failed signed download.
-
-Installation stages the complete dependency closure, then atomically changes one registry. Versions are immutable. Removal recycles unreferenced runtime dependencies. CLI mutations are refused while a host is running; use its module manager or quit normally first. No external service source repository, key, signing identity or public release is created implicitly by exporting source or building a local development package.
+针对性传输验证使用`scripts/verify/test-news-http.py`，不会访问真实新闻上游。单元、真实上游与公开分发分别报告，当前进度见[TASKS](../TASKS.md)。

@@ -14,4 +14,4 @@ The feature ZIP contains its own module.json, executable, README and third-party
 
 Build HTTP with `cargo build --features http --bin lazybuddy-news-http --locked`. Set LAZYBUDDY_API_TOKEN to at least 32 random alphanumeric characters. The server binds 127.0.0.1, requires bearer authentication, rejects Origin, limits request bodies and reports busy requests. Test with `python -B scripts/verify/test-news-http.py`; the tests never fetch upstream news.
 
-API fields and lifecycle are in docs/module-api.md. Ordinary changes run the related unit/contract tests. No real upstream request is needed for source parsing or transport regression. This repository is published as LazyBuddyDev/news-service; binary release and signed catalog publication are separate actions.
+API fields and lifecycle are in [module API](docs/module-api.md); see [documentation](docs/README.md) for the maintained topics. Ordinary changes run the related unit/contract tests. No real upstream request is needed for source parsing or transport regression. This repository is published as LazyBuddyDev/news-service; binary release and signed catalog publication are separate actions.
