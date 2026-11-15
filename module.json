@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "news",
   "name": "新闻速览",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "service_api": 1,
   "target": "windows-x86_64",
   "entrypoint": "bin/lazybuddy-news.exe",

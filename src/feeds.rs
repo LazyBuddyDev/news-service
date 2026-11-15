@@ -647,7 +647,14 @@ pub fn source_subtitle(index: usize) -> Option<&'static str> {
 }
 
 pub fn client() -> Agent {
-    Agent::config_builder()
+    connection_client(std::env::var("LAZYBUDDY_NEWS_DIRECT").as_deref() == Ok("1"))
+}
+fn connection_client(direct: bool) -> Agent {
+    let mut config = Agent::config_builder();
+    if direct {
+        config = config.proxy(None);
+    }
+    config
         .timeout_global(Some(Duration::from_secs(5)))
         .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36")
         .tls_config(
@@ -1226,5 +1233,36 @@ mod tests {
         assert_eq!(stories.len(), 2);
         assert_eq!(stories[0].badge, Some(Badge::Hot));
         assert_eq!(stories[1].badge, None);
+    }
+}
+
+#[cfg(test)]
+mod connection_tests {
+    use super::*;
+    #[test]
+    fn direct_connection_never_uses_an_inherited_proxy() {
+        assert!(connection_client(true).config().proxy().is_none());
+        let expected = ureq::Proxy::try_from_env().map(|p| format!("{p:?}"));
+        assert_eq!(
+            connection_client(false)
+                .config()
+                .proxy()
+                .map(|p| format!("{p:?}")),
+            expected
+        );
+    }
+}
+
+#[cfg(test)]
+mod diagnostic_tests {
+    use super::*;
+    #[test]
+    fn fetch_diagnostic_preserves_stage_without_response_content() {
+        let cause = serde_json::from_str::<serde_json::Value>("secret response body").unwrap_err();
+        let error = at_stage("parse")(cause.into());
+        let detail = error.to_string();
+        assert!(detail.contains("stage=parse"));
+        assert!(detail.contains("kind=json"));
+        assert!(!detail.contains("secret"));
     }
 }

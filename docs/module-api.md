@@ -38,3 +38,7 @@ stdin每行一个UTF-8 JSON对象，stdout仅写对应回复，不混入日志�
 构建与启动见[README](../README.md)。适配器监听127.0.0.1，端点为`POST /v1/news/rpc`，请求体使用同一JSON协议。`LAZYBUDDY_API_TOKEN`至少32个随机字母数字字符，调用需`Authorization: Bearer <token>`。拒绝带Origin的请求，限制请求体并拒绝忙碌期间的新事务，不暴露到公网。
 
 针对性传输验证使用`scripts/verify/test-news-http.py`，不会访问真实新闻上游。单元、真实上游与公开分发分别报告，当前进度见[TASKS](../TASKS.md)。
+
+## Connection mode
+
+News package 0.1.1 accepts the child-process environment variable `LAZYBUDDY_NEWS_DIRECT=1` to explicitly disable all proxies. Otherwise the HTTP client follows proxy environment variables and the current Windows user system proxy. The desktop host persists its own switch and restarts only its news connection when changed; no system proxy settings are modified.

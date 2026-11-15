@@ -61,7 +61,7 @@ pub fn handle(client: &ureq::Agent, input: &[u8]) -> Value {
                                 "url": String::from_utf16_lossy(story.url.strip_suffix(&[0]).unwrap_or(&story.url)),
                                 "badge": story.badge,
                             })).collect::<Vec<_>>() }),
-                        Err(_) => json!({"id": feeds::source_id(index), "ok": false, "error": {"code": "source_failed"}}),
+                        Err(error) => source_failure(feeds::source_id(index), &error),
                     }
                 })).collect();
                 jobs.into_iter().map(|job| job.join().expect("news worker panicked")).collect::<Vec<_>>()
@@ -71,6 +71,10 @@ pub fn handle(client: &ureq::Agent, input: &[u8]) -> Value {
         _ => return error(&request.id, "unknown_method"),
     };
     json!({"version": VERSION, "id": request.id, "ok": true, "data": data})
+}
+
+fn source_failure(id: &str, error: &feeds::FetchError) -> Value {
+    json!({"id":id,"ok":false,"error":{"code":"source_failed","detail":error.to_string()}})
 }
 
 #[cfg(test)]
